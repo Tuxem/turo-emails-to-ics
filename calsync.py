@@ -5,8 +5,10 @@ import os
 from email.parser import Parser
 import re
 import quopri
+from datetime import datetime
 
-from ics import Calendar, Event
+from icalendar import Calendar, Event
+import pytz
 
 # Setup logging
 log_directory = '/var/log/calsync'
@@ -43,19 +45,21 @@ def process_email(data):
         text = quopri.decodestring(mail_content.get_payload()).decode('utf8')
 
     # Extract data using regex
-
     start_time = re.search(r'Début : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     end_time = re.search(r'Fin du voyage : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     name = re.search(r'Le voyage de (\w+) dans votre', text)
     car_name = re.search(r'dans votre (.*?) est réservé', text)
-
+    
     if not (start_time and end_time and name):
         logger.warning("Email did not contain all required reservation details.")
         return
 
+    # Parse date strings into datetime objects
+    paris_tz = pytz.timezone('Europe/Paris')
+    start = paris_tz.localize(datetime.strptime(start_time.group(1) + ' ' + start_time.group(2), '%d/%m/%y %H:%M'))
+    end = paris_tz.localize(datetime.strptime(end_time.group(1) + ' ' + end_time.group(2), '%d/%m/%y %H:%M'))
+
     # Create ICS file if valid data is found
-    start = '20' + start_time.group(1).replace('/', '-') + ' ' + start_time.group(2)
-    end = '20' + end_time.group(1).replace('/', '-') + ' ' + end_time.group(2)
     event_name = name.group(1)
     car = car_name.group(1)
     create_ics_file(event_name, start, end, car, '/var/www/calsync/')
@@ -71,21 +75,23 @@ def create_ics_file(name, start, end, car, directory):
     calendar = Calendar()
     if os.path.exists(ics_path):
         with open(ics_path, 'r') as f:
-            calendar = Calendar(f.read())
+            calendar = Calendar.from_ical(f.read())
 
     # Create new event
     event = Event()
-    event.name = f"{car} by {name}"
-    event.begin = start
-    event.end = end
+    event.add('summary', f"{car} by {name}")
+    event.add('dtstart', start)
+    event.add('dtend', end)
+    event.add('dtstamp', datetime.now(pytz.utc))  # Set the DTSTAMP property
 
     # Add new event to calendar
-    calendar.events.add(event)
+    calendar.add_component(event)
 
     # Write all events back to the ICS file
-    with open(ics_path, 'w') as f:
-        f.writelines(calendar.serialize())
+    with open(ics_path, 'wb') as f:
+        f.write(calendar.to_ical())
     logger.info(f"ICS file updated successfully at {ics_path}")
+
 if __name__ == '__main__':
     # Read email data from stdin
     data = sys.stdin.read()
@@ -93,4 +99,3 @@ if __name__ == '__main__':
     # with open('/opt/example.eml', 'r') as file:
     #     data = file.read()    
     process_email(data)
-
