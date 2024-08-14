@@ -3,6 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 from email.parser import Parser
+import pdb
 import re
 import quopri
 from datetime import datetime
@@ -47,7 +48,9 @@ def process_email(data):
     # Extract data using regex
     start_time = re.search(r'Début : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     end_time = re.search(r'Fin du voyage : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
-    name = re.search(r'Le voyage de (\w+) dans votre', text)
+    name = re.search(r'Le voyage de (.+?) dans votre', text)
+    if not name:
+        re.search(r'Le voyage de (\w+) est reservé', text)
     car_name = re.search(r'dans votre (.*?) est réservé', text)
     
     if not (start_time and end_time and name):
@@ -96,6 +99,6 @@ if __name__ == '__main__':
     # Read email data from stdin
     data = sys.stdin.read()
     # for testing purpose, uncomment these lines to read from file
-    # with open('/opt/example.eml', 'r') as file:
+    # with open('turo_add.eml', 'r') as file:
     #     data = file.read()    
     process_email(data)
