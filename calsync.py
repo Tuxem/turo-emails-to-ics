@@ -62,20 +62,20 @@ def process_email(data, ics_directory):
         text = quopri.decodestring(mail_content.get_payload()).decode('utf8')
 
     if "Le voyage de" in subject:
-        process_reservation(text, ics_directory)
+        process_reservation(text, ics_directory, subject)
     elif "a annulé son voyage" in subject:
-        process_cancellation(text, ics_directory)
+        process_cancellation(text, ics_directory, subject)
     else:
-        logger.warning("Email subject did not match known patterns for reservation or cancellation.")
+        logger.warning(f"Email '{subject} did not match known patterns for reservation or cancellation.")
 
-def process_reservation(text, ics_directory):
+def process_reservation(text, ics_directory, subject):
     start_time = re.search(r'Début : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     end_time = re.search(r'Fin du voyage : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     name = re.search(r'Le voyage de (.+?) dans votre', text)
     car_name = re.search(r'dans votre (.*?) est réservé', text)
 
     if not (start_time and end_time and name):
-        logger.warning("Email did not contain all required reservation details.")
+        logger.warning(f"Email '{subject}' did not contain all required reservation details.")
         return
 
     paris_tz = pytz.timezone('Europe/Paris')
@@ -87,12 +87,12 @@ def process_reservation(text, ics_directory):
     create_ics_file(event_name, start, end, car, ics_directory)
     logger.info(f"Processed reservation for {event_name} from {start} to {end}")
 
-def process_cancellation(text, ics_directory):
+def process_cancellation(text, ics_directory, subject):
     start_time = re.search(r'Début : (\d{2}/\d{2}/\d{2}) (\d{2}:\d{2})', text)
     name = re.search(r'(.+?) a annulé son voyage', text)
 
     if not (start_time and name):
-        logger.warning("Email did not contain all required cancellation details.")
+        logger.warning(f"Email '{subject}' did not contain all required cancellation details.")
         return
 
     paris_tz = pytz.timezone('Europe/Paris')
